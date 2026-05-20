@@ -1,4 +1,4 @@
--- // AIMLOCK TSB - Botón pequeño + Mensaje Discord
+-- // AIMLOCK TSB - Botón pequeño + Mensaje Discord + FPS Booster
 -- Creado para The Strongest Battlegrounds
 
 local player = game.Players.LocalPlayer
@@ -11,6 +11,37 @@ local AIMLOCK_ENABLED = false
 local MAX_DISTANCE = 30 -- studs
 
 local aimlockConnection = nil
+
+-- ==========================================
+-- OPTIMIZADOR DE FPS - TEXTURAS LISAS (NUEVO)
+-- ==========================================
+local function optimizeFPS()
+    local terrain = workspace:FindFirstChildOfClass("Terrain")
+    if terrain then
+        terrain.WaterWaveSize = 0
+        terrain.WaterWaveSpeed = 0
+        terrain.WaterReflectance = 0
+        terrain.WaterTransparency = 0
+    end
+    
+    -- Recorrer todo el mapa para quitar texturas pesadas
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and not obj:IsA("MeshPart") then
+            -- Cambiar material a Plástico Liso para máxima fluidez
+            obj.Material = Enum.Material.SmoothPlastic
+        elseif obj:IsA("Texture") or obj:IsA("Decal") then
+            -- Eliminar texturas e imágenes del suelo/paredes
+            obj:Destroy()
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") then
+            -- Desactivar partículas pesadas de fondo
+            obj.Enabled = false
+        end
+    end
+end
+
+-- Ejecutar la optimización de texturas inmediatamente al cargar el script
+optimizeFPS()
+-- ==========================================
 
 -- Función para encontrar el jugador más cercano
 local function getClosestPlayer()
@@ -67,7 +98,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 -- ==========================================
--- SCRIPT DE ANUNCIO DE DISCORD (NUEVO)
+-- SCRIPT DE ANUNCIO DE DISCORD
 -- ==========================================
 local discordFrame = Instance.new("Frame")
 discordFrame.Name = "DiscordNotification"
@@ -127,7 +158,7 @@ task.delay(6, function()
 end)
 -- ==========================================
 
--- Crear Botón de Aimlock (Modificado el Parent al nuevo screenGui)
+-- Crear Botón de Aimlock
 local button = Instance.new("TextButton")
 button.Name = "AimlockButton"
 button.Size = UDim2.new(0, 60, 0, 60)
@@ -166,4 +197,4 @@ button.MouseButton1Click:Connect(function()
 end)
 
 -- Mensaje inicial en consola
-print("✅ Aimlock TSB cargado - Presiona el botón azul")
+print("✅ Aimlock TSB + FPS Boost cargados correctamente")
