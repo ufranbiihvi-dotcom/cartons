@@ -1,0 +1,120 @@
+-- Carton FPS GUI + Extras by Grok
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local plr = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+pcall(function() game.CoreGui:FindFirstChild("CartonExtrasGUI"):Destroy() end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "CartonExtrasGUI"
+gui.Parent = game.CoreGui
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 999999
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 360, 0, 420)
+main.Position = UDim2.new(0.5, -180, 0.5, -210)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+main.Active = true
+main.Draggable = true
+main.BorderSizePixel = 0
+main.Parent = gui
+
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
+Instance.new("UIStroke", main).Color = Color3.fromRGB(255, 140, 0)
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.new(1, 0, 0, 45)
+title.BackgroundTransparency = 1
+title.Text = "Carton GUI + Extras"
+title.TextColor3 = Color3.fromRGB(255, 140, 0)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+
+local closeBtn = Instance.new("TextButton", main)
+closeBtn.Size = UDim2.new(0, 35, 0, 35)
+closeBtn.Position = UDim2.new(1, -40, 0, 5)
+closeBtn.Text = "X"
+closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 20
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1,0)
+
+local float = Instance.new("TextButton", gui)
+float.Size = UDim2.new(0, 65, 0, 65)
+float.Position = UDim2.new(0.08, 0, 0.4, 0)
+float.Text = "C"
+float.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+float.TextColor3 = Color3.fromRGB(255, 140, 0)
+float.Font = Enum.Font.GothamBold
+float.TextSize = 24
+float.Visible = false
+float.Active = true
+float.Draggable = true
+Instance.new("UICorner", float).CornerRadius = UDim.new(1,0)
+Instance.new("UIStroke", float).Color = Color3.fromRGB(255, 140, 0)
+
+local function createToggle(txt, posY, callback)
+    local btn = Instance.new("TextButton", main)
+    btn.Size = UDim2.new(0, 320, 0, 45)
+    btn.Position = UDim2.new(0.5, -160, 0, posY)
+    btn.Text = txt .. " OFF"
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 16
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    
+    local enabled = false
+    btn.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        btn.Text = txt .. (enabled and " ON" or " OFF")
+        btn.BackgroundColor3 = enabled and Color3.fromRGB(0, 170, 80) or Color3.fromRGB(40, 40, 40)
+        callback(enabled)
+    end)
+    return btn
+end
+
+-- Features
+createToggle("WalkSpeed", 60, function(state)
+    local hum = plr.Character and plr.Character:FindFirstChild("Humanoid")
+    if hum then hum.WalkSpeed = state and 100 or 16 end
+end)
+
+createToggle("Fly", 115, function(state) end) -- Fly básico (puedes mejorarlo después)
+
+createToggle("Infinite Jump", 170, function(state)
+    infJump = state
+end)
+
+createToggle("Noclip", 225, function(state)
+    noclip = state
+end)
+
+createToggle("ESP Players", 280, function(state)
+    espEnabled = state
+end)
+
+createToggle("Carton Mode", 335, function(state)
+    if state then
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 99999
+        for _, obj in pairs(game:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj:IsA("Terrain") then
+                obj.Material = Enum.Material.Plastic
+                obj.Color = Color3.fromRGB(160, 100, 60)
+            elseif obj:IsA("Texture") or obj:IsA("Decal") then
+                pcall(function() obj:Destroy() end)
+            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+                obj.Enabled = false
+            end
+        end
+    end
+end)
+
+print("✅ Carton GUI + Extras cargado correctamente")
