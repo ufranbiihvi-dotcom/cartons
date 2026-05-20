@@ -1,120 +1,169 @@
--- Carton FPS GUI + Extras by Grok
-local Players = game:GetService("Players")
-local UIS = game:GetService("UserInputService")
-local RS = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
+-- // AIMLOCK TSB - Botón pequeño + Mensaje Discord
+-- Creado para The Strongest Battlegrounds
 
-local plr = Players.LocalPlayer
+local player = game.Players.LocalPlayer
 local camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
-pcall(function() game.CoreGui:FindFirstChild("CartonExtrasGUI"):Destroy() end)
+local AIMLOCK_ENABLED = false
+local MAX_DISTANCE = 30 -- studs
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "CartonExtrasGUI"
-gui.Parent = game.CoreGui
-gui.ResetOnSpawn = false
-gui.DisplayOrder = 999999
+local aimlockConnection = nil
 
-local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 360, 0, 420)
-main.Position = UDim2.new(0.5, -180, 0.5, -210)
-main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-main.Active = true
-main.Draggable = true
-main.BorderSizePixel = 0
-main.Parent = gui
-
-Instance.new("UICorner", main).CornerRadius = UDim.new(0, 12)
-Instance.new("UIStroke", main).Color = Color3.fromRGB(255, 140, 0)
-
-local title = Instance.new("TextLabel", main)
-title.Size = UDim2.new(1, 0, 0, 45)
-title.BackgroundTransparency = 1
-title.Text = "Carton GUI + Extras"
-title.TextColor3 = Color3.fromRGB(255, 140, 0)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 20
-
-local closeBtn = Instance.new("TextButton", main)
-closeBtn.Size = UDim2.new(0, 35, 0, 35)
-closeBtn.Position = UDim2.new(1, -40, 0, 5)
-closeBtn.Text = "X"
-closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
-closeBtn.TextColor3 = Color3.new(1,1,1)
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 20
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1,0)
-
-local float = Instance.new("TextButton", gui)
-float.Size = UDim2.new(0, 65, 0, 65)
-float.Position = UDim2.new(0.08, 0, 0.4, 0)
-float.Text = "C"
-float.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-float.TextColor3 = Color3.fromRGB(255, 140, 0)
-float.Font = Enum.Font.GothamBold
-float.TextSize = 24
-float.Visible = false
-float.Active = true
-float.Draggable = true
-Instance.new("UICorner", float).CornerRadius = UDim.new(1,0)
-Instance.new("UIStroke", float).Color = Color3.fromRGB(255, 140, 0)
-
-local function createToggle(txt, posY, callback)
-    local btn = Instance.new("TextButton", main)
-    btn.Size = UDim2.new(0, 320, 0, 45)
-    btn.Position = UDim2.new(0.5, -160, 0, posY)
-    btn.Text = txt .. " OFF"
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.GothamSemibold
-    btn.TextSize = 16
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+-- Función para encontrar el jugador más cercano
+local function getClosestPlayer()
+    local closest = nil
+    local shortestDistance = MAX_DISTANCE
     
-    local enabled = false
-    btn.MouseButton1Click:Connect(function()
-        enabled = not enabled
-        btn.Text = txt .. (enabled and " ON" or " OFF")
-        btn.BackgroundColor3 = enabled and Color3.fromRGB(0, 170, 80) or Color3.fromRGB(40, 40, 40)
-        callback(enabled)
-    end)
-    return btn
-end
-
--- Features
-createToggle("WalkSpeed", 60, function(state)
-    local hum = plr.Character and plr.Character:FindFirstChild("Humanoid")
-    if hum then hum.WalkSpeed = state and 100 or 16 end
-end)
-
-createToggle("Fly", 115, function(state) end) -- Fly básico (puedes mejorarlo después)
-
-createToggle("Infinite Jump", 170, function(state)
-    infJump = state
-end)
-
-createToggle("Noclip", 225, function(state)
-    noclip = state
-end)
-
-createToggle("ESP Players", 280, function(state)
-    espEnabled = state
-end)
-
-createToggle("Carton Mode", 335, function(state)
-    if state then
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 99999
-        for _, obj in pairs(game:GetDescendants()) do
-            if obj:IsA("BasePart") and not obj:IsA("Terrain") then
-                obj.Material = Enum.Material.Plastic
-                obj.Color = Color3.fromRGB(160, 100, 60)
-            elseif obj:IsA("Texture") or obj:IsA("Decal") then
-                pcall(function() obj:Destroy() end)
-            elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
-                obj.Enabled = false
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local root = plr.Character.HumanoidRootPart
+            local distance = (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) 
+                and (player.Character.HumanoidRootPart.Position - root.Position).Magnitude 
+                or 9999
+            
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closest = plr
             end
         end
     end
+    return closest
+end
+
+-- Aimlock Loop
+local function startAimlock()
+    if aimlockConnection then return end
+    
+    aimlockConnection = RunService.RenderStepped:Connect(function()
+        if not AIMLOCK_ENABLED then return end
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+        
+        local target = getClosestPlayer()
+        if not target or not target.Character or not target.Character:FindFirstChild("Head") then return end
+        
+        local targetHead = target.Character.Head
+        local root = player.Character.HumanoidRootPart
+        
+        -- Apuntar a la cabeza
+        local direction = (targetHead.Position - camera.CFrame.Position).Unit
+        camera.CFrame = CFrame.lookAt(camera.CFrame.Position, camera.CFrame.Position + direction)
+    end)
+end
+
+local function stopAimlock()
+    if aimlockConnection then
+        aimlockConnection:Disconnect()
+        aimlockConnection = nil
+    end
+end
+
+-- Crear GUI Principal (Contenedor)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TSBAimlock"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- ==========================================
+-- SCRIPT DE ANUNCIO DE DISCORD (NUEVO)
+-- ==========================================
+local discordFrame = Instance.new("Frame")
+discordFrame.Name = "DiscordNotification"
+discordFrame.Size = UDim2.new(0, 350, 0, 60)
+discordFrame.Position = UDim2.new(0.5, -175, 0, -80) -- Empieza arriba afuera de la pantalla para animación
+discordFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+discordFrame.BackgroundTransparency = 0.3 -- Semitransparente como pediste
+discordFrame.BorderSizePixel = 0
+discordFrame.Parent = screenGui
+
+local discordCorner = Instance.new("UICorner")
+discordCorner.CornerRadius = UDim.new(0, 10)
+discordCorner.Parent = discordFrame
+
+local discordStroke = Instance.new("UIStroke")
+discordStroke.Thickness = 1.5
+discordStroke.Color = Color3.fromRGB(114, 137, 218) -- Color Discord
+discordStroke.Transparency = 0.4
+discordStroke.Parent = discordFrame
+
+local discordText = Instance.new("TextLabel")
+discordText.Size = UDim2.new(1, 0, 1, 0)
+discordText.BackgroundTransparency = 1
+discordText.Text = "Apóyanos en nuestro server de Discord\n(Click para copiar enlace)"
+discordText.TextColor3 = Color3.fromRGB(255, 255, 255)
+discordText.TextSize = 16
+discordText.Font = Enum.Font.GothamBold
+discordText.Parent = discordFrame
+
+-- Botón Transparente para hacer Click y Copiar
+local discordButton = Instance.new("TextButton")
+discordButton.Size = UDim2.new(1, 0, 1, 0)
+discordButton.BackgroundTransparency = 1 -- Completamente transparente
+discordButton.Text = "" -- Sin texto para que no estorbe
+discordButton.Parent = discordFrame
+
+discordButton.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard("https://discord.gg/3QkDupPa")
+        discordText.Text = "¡Copiado al portapapeles! ✅"
+        discordText.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        discordText.Text = "Tu ejecutor no soporta copiar :("
+    end
 end)
 
-print("✅ Carton GUI + Extras cargado correctamente")
+-- Animación de entrada (Aparece a los 60px de arriba)
+TweenService:Create(discordFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -175, 0, 20)}):Play()
+
+-- Desaparecer después de 6 segundos
+task.delay(6, function()
+    local fadeOut = TweenService:Create(discordFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Position = UDim2.new(0.5, -175, 0, -80)})
+    fadeOut:Play()
+    fadeOut.Completed:Connect(function()
+        discordFrame:Destroy() -- Se elimina por completo
+    end)
+end)
+-- ==========================================
+
+-- Crear Botón de Aimlock (Modificado el Parent al nuevo screenGui)
+local button = Instance.new("TextButton")
+button.Name = "AimlockButton"
+button.Size = UDim2.new(0, 60, 0, 60)
+button.Position = UDim2.new(0, 20, 1, -80)
+button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+button.Text = "🔒"
+button.TextColor3 = Color3.new(1, 1, 1)
+button.TextScaled = true
+button.Font = Enum.Font.GothamBold
+button.BorderSizePixel = 0
+button.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = button
+
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(255, 255, 255)
+stroke.Transparency = 0.7
+stroke.Parent = button
+
+-- Toggle
+button.MouseButton1Click:Connect(function()
+    AIMLOCK_ENABLED = not AIMLOCK_ENABLED
+    
+    if AIMLOCK_ENABLED then
+        button.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+        button.Text = "ON"
+        startAimlock()
+    else
+        button.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+        button.Text = "🔒"
+        stopAimlock()
+    end
+end)
+
+-- Mensaje inicial en consola
+print("✅ Aimlock TSB cargado - Presiona el botón azul")
