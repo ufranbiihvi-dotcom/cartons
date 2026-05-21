@@ -11,6 +11,12 @@ local AIMLOCK_ENABLED = false
 local MAX_DISTANCE = 30 -- studs
 
 local aimlockConnection = nil
+local espConnection = nil
+local espStorage = {}
+
+local MEGA_FPS_ENABLED = false
+local megaFpsConnection = nil
+local originalClothes = {} -- Guarda la ropa original por si decides desactivarlo
 
 -- ==========================================
 -- OPTIMIZADOR DE FPS - TEXTURAS LISAS (NUEVO)
@@ -90,6 +96,172 @@ local function stopAimlock()
         aimlockConnection = nil
     end
 end
+                
+-- ==========================================
+-- FUNCIONES DEL ESP (NUEVO)
+-- ==========================================
+
+-- Crear Interfaz del ESP para un jugador (No se separan)
+local function createESPVisuals(targetPlayer)
+    if espStorage[targetPlayer] then return end
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "PlayerESP_" .. targetPlayer.Name
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(4, 0, 5.5, 0)
+    billboard.Adornee = nil
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(1, 0, 1, 0)
+    mainFrame.BackgroundTransparency = 1
+    mainFrame.Parent = billboard
+
+    -- Recuadro exterior del ESP
+    local boxStroke = Instance.new("UIStroke")
+    boxStroke.Thickness = 1.5
+    boxStroke.Color = Color3.fromRGB(255, 255, 255)
+    boxStroke.Parent = mainFrame
+
+    -- NOMBRE DEL JUGADOR: Anclado arriba del recuadro
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0, 20)
+    nameLabel.Position = UDim2.new(0, 0, 0, -25)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = targetPlayer.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextSize = 14
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLabel.Parent = mainFrame
+
+    -- Fondo de la barra de vida
+    local healthBackground = Instance.new("Frame")
+    healthBackground.Size = UDim2.new(0, 4, 1, 0)
+    healthBackground.Position = UDim2.new(0, -10, 0, 0)
+    healthBackground.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    healthBackground.BorderSizePixel = 0
+    healthBackground.Parent = mainFrame
+
+    -- Barra de vida (Relleno)
+    local healthBar = Instance.new("Frame")
+    healthBar.Size = UDim2.new(1, 0, 1, 0)
+    healthBar.BorderSizePixel = 0
+    healthBar.Parent = healthBackground
+
+    espStorage[targetPlayer] = {
+        Billboard = billboard,
+        Bar = healthBar,
+        BoxStroke = boxStroke
+    }
+end
+
+local function removeESPVisuals(targetPlayer)
+    if espStorage[targetPlayer] then
+        espStorage[targetPlayer].Billboard:Destroy()
+        espStorage[targetPlayer] = nil
+    end
+end
+
+-- Bucle Principal del ESP
+local function startESP()
+    if espConnection then return end
+    
+    espConnection = RunService.RenderStepped:Connect(function()
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChildOfClass("Humanoid") then
+                local char = plr.Character
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local root = char.HumanoidRootPart
+                
+                if not espStorage[plr] then
+                    createESPVisuals(plr)
+                end
+                
+                local data = espStorage[plr]
+                if data then
+                    data.Billboard.Adornee = root
+                    data.Billboard.Parent = player:WaitForChild("PlayerGui")
+                    
+                    -- Actualizar barra de vida
+                    local healthPercentage = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                    data.Bar.Size = UDim2.new(1, 0, healthPercentage, 0)
+                    data.Bar.Position = UDim2.new(0, 0, 1 - healthPercentage, 0)
+                    
+                    -- Cambiar color según el 50% de vida
+                    if healthPercentage >= 0.5 then
+                        data.Bar.BackgroundColor3 = Color3.fromRGB(0, 255, 100) -- Verde
+                        data.BoxStroke.Color = Color3.fromRGB(0, 255, 100)
+                    else
+                        data.Bar.BackgroundColor3 = Color3.fromRGB(255, 50, 50) -- Rojo
+                        data.BoxStroke.Color = Color3.fromRGB(255, 50, 50)
+                    end
+                end
+            else
+                removeESPVisuals(plr)
+            end
+        end
+    end)
+end
+
+local function stopESP()
+    if espConnection then
+        espConnection:Disconnect()
+        espConnection = nil
+    end
+    for plr, _ in pairs(espStorage) do
+        removeESPVisuals(plr)
+    end
+end
+
+game.Players.PlayerRemoving:Connect(removeESPVisuals)
+
+local function aplicarMegaFPS()
+    -- 1. Convertir a todos los jugadores en Noobs y quitarles accesorios pesados
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            local char = plr.Character
+            
+            -- Quitar accesorios (pelos, alas, sombreros gigantes)
+            for _, obj in ipairs(char:GetChildren()) do
+                if obj:IsA("Accessory") then
+                    obj:Destroy()
+                elseif obj:IsA("Shirt") or obj:IsA("Pants") or obj:IsA("ShirtGraphic") then
+                    obj:Destroy()
+                end
+            end
+            
+            -- Pintar como Noob clásico
+            local bodyColors = char:FindFirstChildOfClass("BodyColors")
+            if not bodyColors then
+                bodyColors = Instance.new("BodyColors", char)
+            end
+            bodyColors.TorsoColor3 = Color3.new(0, 0.4, 0.8) -- Azul
+            bodyColors.LeftLegColor3 = Color3.new(0.3, 0.7, 0.3) -- Verde
+            bodyColors.RightLegColor3 = Color3.new(0.3, 0.7, 0.3) -- Verde
+            bodyColors.HeadColor3 = Color3.new(1, 0.8, 0) -- Amarillo
+            bodyColors.LeftArmColor3 = Color3.new(1, 0.8, 0)
+            bodyColors.RightArmColor3 = Color3.new(1, 0.8, 0)
+        end
+    end
+
+    -- 2. Eliminar texturas del mapa y efectos visuales pesados
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            obj.Material = Enum.Material.SmoothPlastic
+            obj.Reflectance = 0
+        elseif obj:IsA("Texture") or obj:IsA("Decal") then
+            obj:Destroy()
+        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
+            obj:Destroy() -- Elimina por completo los efectos para liberar memoria
+        end
+    end
+    
+    -- Ajustar iluminación al mínimo esfuerzo para la gráfica
+    local lighting = game:GetService("Lighting")
+    lighting.GlobalShadows = false
+    lighting.FogEnd = 999999
+end                
 
 -- Crear GUI Principal (Contenedor)
 local screenGui = Instance.new("ScreenGui")
@@ -196,5 +368,90 @@ button.MouseButton1Click:Connect(function()
     end
 end)
 
--- Mensaje inicial en consola
-print("✅ Aimlock TSB + FPS Boost cargados correctamente")
+-- ==========================================
+-- BOTÓN DE ESP (NUEVO)
+-- ==========================================
+local espButton = Instance.new("TextButton")
+espButton.Name = "ESPButton"
+espButton.Size = UDim2.new(0, 60, 0, 60)
+espButton.Position = UDim2.new(0, 20, 1, -150) -- Justo encima del Aimlock
+espButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+espButton.Text = "ESP"
+espButton.TextColor3 = Color3.new(1, 1, 1)
+espButton.TextSize = 18
+espButton.Font = Enum.Font.GothamBold
+espButton.BorderSizePixel = 0
+espButton.Parent = screenGui -- Usa el mismo contenedor del Aimlock
+
+local espCorner = Instance.new("UICorner")
+espCorner.CornerRadius = UDim.new(0, 12)
+espCorner.Parent = espButton
+
+local espStroke = Instance.new("UIStroke")
+espStroke.Thickness = 2
+espStroke.Color = Color3.fromRGB(255, 255, 255)
+espStroke.Transparency = 0.7
+espStroke.Parent = espButton
+
+local ESP_ACTIVE = false
+espButton.MouseButton1Click:Connect(function()
+    ESP_ACTIVE = not ESP_ACTIVE
+    if ESP_ACTIVE then
+        espButton.BackgroundColor3 = Color3.fromRGB(0, 255, 100) -- Cambia a verde al activar
+        startESP()
+    else
+        espButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255) -- Vuelve a azul al apagar
+        stopESP()
+    end
+end)
+                
+-- ==========================================
+-- BOTÓN DE MEGA FPS (NUEVO - Al lado del chat)
+-- ==========================================
+local fpsButton = Instance.new("TextButton")
+fpsButton.Name = "MegaFPSButton"
+fpsButton.Size = UDim2.new(0, 95, 0, 35) -- Más alargado para que entre el texto
+fpsButton.Position = UDim2.new(0, 120, 0, 15) -- Posición ideal al lado del chat superior
+fpsButton.BackgroundColor3 = Color3.new(0.3, 0, 0.6) -- Color lila oscuro de fondo
+fpsButton.Text = "MEGA FPS"
+fpsButton.TextColor3 = Color3.new(1, 1, 1)
+fpsButton.TextSize = 13
+fpsButton.Font = Enum.Font.GothamBold
+fpsButton.BorderSizePixel = 0
+fpsButton.Parent = screenGui -- Usa tu mismo ScreenGui principal
+
+local fpsCorner = Instance.new("UICorner")
+fpsCorner.CornerRadius = UDim.new(0, 8)
+fpsCorner.Parent = fpsButton
+
+local fpsStroke = Instance.new("UIStroke")
+fpsStroke.Thickness = 1.5
+fpsStroke.Color = Color3.new(1, 1, 1)
+fpsStroke.Transparency = 0.6
+fpsStroke.Parent = fpsButton
+
+-- Activación del modo optimización extrema
+fpsButton.MouseButton1Click:Connect(function()
+    MEGA_FPS_ENABLED = not MEGA_FPS_ENABLED
+    if MEGA_FPS_ENABLED then
+        fpsButton.BackgroundColor3 = Color3.new(0, 1, 0.4) -- Se vuelve verde brillante al activarse
+        fpsButton.Text = "FPS MAXED"
+        aplicarMegaFPS()
+        
+        -- Dejar un bucle para que cada nuevo jugador que entre o reaparezca también se vuelva Noob
+        megaFpsConnection = game.Players.PlayerAdded:Connect(function(newPlayer)
+            newPlayer.CharacterAdded:Connect(function()
+                task.wait(1) -- Esperar a que cargue su skin para borrársela
+                if MEGA_FPS_ENABLED then aplicarMegaFPS() end
+            end)
+        end)
+    else
+        fpsButton.BackgroundColor3 = Color3.new(0.3, 0, 0.6) -- Vuelve al lila original
+        fpsButton.Text = "MEGA FPS"
+        if megaFpsConnection then
+            megaFpsConnection:Disconnect()
+            megaFpsConnection = nil
+        end
+        -- Nota: Los cambios de rendimiento son tan agresivos que para recuperar texturas originales es mejor reiniciar el juego.
+    end
+end)                
